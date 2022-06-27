@@ -22,7 +22,7 @@ function help() {
 ${BOLD}NAME${RESET}
 \t$NAME - Build delivery using an ${BOLD}Centos 7 docker image${RESET}.
 ${BOLD}SYNOPSIS${RESET}
-\t$NAME [-h|--help] [examples|dotnet|java|python|all|reset]
+\t$NAME [-h|--help|help] [examples|dotnet|java|python|all|reset]
 ${BOLD}DESCRIPTION${RESET}
 \tBuild Google OR-Tools deliveries.
 \tYou ${BOLD}MUST${RESET} define the following variables before running this script:
@@ -45,7 +45,7 @@ note: the 'export ...' should be placed in your bashrc to avoid any leak
 of the secret in your bash history
 EOF
 )
-echo -e "$help"
+  echo -e "$help"
 }
 
 function assert_defined(){
@@ -60,94 +60,156 @@ function build_delivery() {
   assert_defined ORTOOLS_SHA1
   assert_defined ORTOOLS_TOKEN
   assert_defined ORTOOLS_DELIVERY
+  assert_defined DOCKERFILE
+  assert_defined ORTOOLS_IMG
+
+  # Enable docker over QEMU support
+  docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
   # Clean
-  docker image rm -f ortools:linux_delivery 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}:devel" 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}:env" 2>/dev/null
 
   cd "${RELEASE_DIR}" || exit 2
 
   # Build env
-  docker build --tag ortools/linux_delivery:env \
+  docker build --platform linux/arm64 \
+    --tag "${ORTOOLS_IMG}:env" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=env \
-    -f Dockerfile .
+    -f "${DOCKERFILE}" .
 
   # Build devel
-  docker build --tag ortools/linux_delivery:devel \
+  docker build --platform linux/arm64 \
+    --tag "${ORTOOLS_IMG}:devel" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=devel \
-    -f Dockerfile .
+    -f "${DOCKERFILE}" .
 
   # Build delivery
-  docker build --tag ortools/linux_delivery:"${ORTOOLS_DELIVERY}" \
+  docker build --platform linux/arm64 \
+    --tag "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --build-arg ORTOOLS_TOKEN="${ORTOOLS_TOKEN}" \
     --build-arg ORTOOLS_DELIVERY="${ORTOOLS_DELIVERY}" \
     --target=delivery \
-    -f Dockerfile .
+    -f "${DOCKERFILE}" .
 }
 
 # .Net build
 function build_dotnet() {
+  if echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" | cmp --silent "${ROOT_DIR}/export/arm64_dotnet_build" -; then
+    echo "build .Net up to date!" | tee -a build.log
+    return 0
+  fi
+
+  assert_defined ORTOOLS_IMG
   local -r ORTOOLS_DELIVERY=dotnet
   build_delivery
 
+  # copy nupkg to export
   docker run --rm --init \
   -w /root/or-tools \
   -v "${ROOT_DIR}/export":/export \
-  -t ortools/linux_delivery:dotnet "cp export/*nupkg /export/"
+  -u $(id -u ${USER}):$(id -g ${USER}) \
+  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*nupkg /export/"
+  echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_dotnet_build"
 }
 
 # Java build
 function build_java() {
+  if echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" | cmp --silent "${ROOT_DIR}/export/arm64_java_build" -; then
+    echo "build Java up to date!" | tee -a build.log
+    return 0
+  fi
+
+  assert_defined ORTOOLS_IMG
   local -r ORTOOLS_DELIVERY=java
   build_delivery
 
+  # copy jar to export
   docker run --rm --init \
   -w /root/or-tools \
   -v "${ROOT_DIR}/export":/export \
-  -t ortools/linux_delivery:java "cp export/*.jar* /export/"
+  -u $(id -u ${USER}):$(id -g ${USER}) \
+  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*.jar* /export/"
+  echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_java_build"
 }
 
 # Python build
 function build_python() {
+  if echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" | cmp --silent "${ROOT_DIR}/export/arm64_python_build" -; then
+    echo "build python up to date!" | tee -a build.log
+    return 0
+  fi
+
   local -r ORTOOLS_DELIVERY=python
   build_delivery
+
+  echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_python_build"
 }
 
+# Create Archive
 function build_archive() {
+  if echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" | cmp --silent "${ROOT_DIR}/export/arm64_archive_build" -; then
+    echo "build archive up to date!" | tee -a build.log
+    return 0
+  fi
+
   local -r ORTOOLS_DELIVERY=archive
   build_delivery
+
+  # copy archive to export
+  docker run --rm --init \
+  -w /root/or-tools \
+  -v "${ROOT_DIR}/export":/export \
+  -u $(id -u ${USER}):$(id -g ${USER}) \
+  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*.tar.gz /export/"
+ echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_archive_build"
 }
 
+# Build Examples
 function build_examples() {
+  if echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" | cmp --silent "${ROOT_DIR}/export/amd64_examples_build" -; then
+    echo "build examples up to date!" | tee -a build.log
+    return 0
+  fi
+
   local -r ORTOOLS_DELIVERY=examples
   build_delivery
+
+  echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_examples_build"
 }
 
 # Main
 function main() {
   case ${1} in
-    -h | --help)
+    -h | --help | help)
       help; exit ;;
   esac
 
   assert_defined ORTOOLS_TOKEN
-  echo "ORTOOLS_TOKEN: FOUND"
+  echo "ORTOOLS_TOKEN: FOUND" | tee -a build.log
 
   local -r ROOT_DIR="$(cd -P -- "$(dirname -- "$0")/../.." && pwd -P)"
-  echo "ROOT_DIR: '${ROOT_DIR}'"
+  echo "ROOT_DIR: '${ROOT_DIR}'" | tee -a build.log
 
   local -r RELEASE_DIR="$(cd -P -- "$(dirname -- "$0")" && pwd -P)"
-  echo "RELEASE_DIR: '${RELEASE_DIR}'"
+  echo "RELEASE_DIR: '${RELEASE_DIR}'" | tee -a build.log
+
+  (cd "${ROOT_DIR}" && make print-OR_TOOLS_VERSION | tee -a build.log)
 
   local -r ORTOOLS_BRANCH=$(git rev-parse --abbrev-ref HEAD)
   local -r ORTOOLS_SHA1=$(git rev-parse --verify HEAD)
+  local -r DOCKERFILE="arm64.Dockerfile"
+  local -r ORTOOLS_IMG="ortools/manylinux_delivery_arm64"
 
   mkdir -p export
+
   case ${1} in
     dotnet|java|python|archive|examples)
       "build_$1"
@@ -156,6 +218,7 @@ function main() {
       build_dotnet
       build_java
       #build_python
+      #build_archive
       build_examples
       exit ;;
     *)
@@ -166,3 +229,4 @@ function main() {
 }
 
 main "${1:-all}"
+
