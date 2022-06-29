@@ -68,9 +68,9 @@ function build_delivery() {
 
   # Clean
   echo -n "Remove previous docker images..." | tee -a "${ROOT_DIR}/build.log"
-  docker image rm -f "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" 2>/dev/null
-  docker image rm -f "${ORTOOLS_IMG}:devel" 2>/dev/null
-  docker image rm -f "${ORTOOLS_IMG}:env" 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}":devel 2>/dev/null
+  docker image rm -f "${ORTOOLS_IMG}":env 2>/dev/null
   echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   cd "${RELEASE_DIR}" || exit 2
@@ -78,7 +78,7 @@ function build_delivery() {
   # Build env
   echo -n "Build ${ORTOOLS_IMG}:env..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
-    --tag "${ORTOOLS_IMG}:env" \
+    --tag "${ORTOOLS_IMG}":env \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=env \
@@ -88,7 +88,7 @@ function build_delivery() {
   # Build devel
   echo -n "Build ${ORTOOLS_IMG}:devel..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
-    --tag "${ORTOOLS_IMG}:devel" \
+    --tag "${ORTOOLS_IMG}":devel \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=devel \
@@ -98,7 +98,7 @@ function build_delivery() {
   # Build delivery
   echo -n "Build ${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
-    --tag "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" \
+    --tag "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --build-arg ORTOOLS_TOKEN="${ORTOOLS_TOKEN}" \
@@ -123,8 +123,8 @@ function build_dotnet() {
   docker run --rm --init \
   -w /root/or-tools \
   -v "${ROOT_DIR}/export":/export \
-  -u $(id -u ${USER}):$(id -g ${USER}) \
-  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*nupkg /export/"
+  -u "$(id -u "${USER}")":"$(id -g "${USER}")" \
+  -t "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" "cp export/*nupkg /export/"
   echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_dotnet_build"
 }
 
@@ -139,12 +139,12 @@ function build_java() {
   local -r ORTOOLS_DELIVERY=java
   build_delivery
 
-  # copy jar to export
+  # copy .jar to export
   docker run --rm --init \
   -w /root/or-tools \
   -v "${ROOT_DIR}/export":/export \
-  -u $(id -u ${USER}):$(id -g ${USER}) \
-  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*.jar* /export/"
+  -u "$(id -u "${USER}")":"$(id -g "${USER}")" \
+  -t "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" "cp export/*.jar* /export/"
   echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_java_build"
 }
 
@@ -158,6 +158,12 @@ function build_python() {
   local -r ORTOOLS_DELIVERY=python
   build_delivery
 
+  # copy .whl to export
+  docker run --rm --init \
+  -w /root/or-tools \
+  -v "${ROOT_DIR}/export":/export \
+  -u "$(id -u "${USER}")":"$(id -g "${USER}")" \
+  -t "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" "cp export/*.whl /export/"
   echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_python_build"
 }
 
@@ -175,8 +181,8 @@ function build_archive() {
   docker run --rm --init \
   -w /root/or-tools \
   -v "${ROOT_DIR}/export":/export \
-  -u $(id -u ${USER}):$(id -g ${USER}) \
-  -t "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" "cp export/*.tar.gz /export/"
+  -u "$(id -u "${USER}")":"$(id -g "${USER}")" \
+  -t "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" "cp export/*.tar.gz /export/"
  echo "${ORTOOLS_BRANCH} ${ORTOOLS_SHA1}" > "${ROOT_DIR}/export/arm64_archive_build"
 }
 
