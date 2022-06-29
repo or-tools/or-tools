@@ -67,29 +67,36 @@ function build_delivery() {
   docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
   # Clean
+  echo -n "Remove previous docker images..." | tee -a "${ROOT_DIR}/build.log"
   docker image rm -f "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" 2>/dev/null
   docker image rm -f "${ORTOOLS_IMG}:devel" 2>/dev/null
   docker image rm -f "${ORTOOLS_IMG}:env" 2>/dev/null
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   cd "${RELEASE_DIR}" || exit 2
 
   # Build env
+  echo -n "Build ${ORTOOLS_IMG}:env..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
     --tag "${ORTOOLS_IMG}:env" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=env \
     -f "${DOCKERFILE}" .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   # Build devel
+  echo -n "Build ${ORTOOLS_IMG}:devel..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
     --tag "${ORTOOLS_IMG}:devel" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=devel \
     -f "${DOCKERFILE}" .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   # Build delivery
+  echo -n "Build ${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}..." | tee -a "${ROOT_DIR}/build.log"
   docker build --platform linux/arm64 \
     --tag "${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
@@ -98,6 +105,7 @@ function build_delivery() {
     --build-arg ORTOOLS_DELIVERY="${ORTOOLS_DELIVERY}" \
     --target=delivery \
     -f "${DOCKERFILE}" .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 }
 
 # .Net build

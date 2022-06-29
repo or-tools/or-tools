@@ -20,7 +20,7 @@ function help() {
   local -r RESET="\e[0m"
   local -r help=$(cat << EOF
 ${BOLD}NAME${RESET}
-\t$NAME - Build delivery using an ${BOLD}Centos 7 docker image${RESET}.
+\t$NAME - Build delivery using an ${BOLD}manylinux2014 docker image${RESET}.
 ${BOLD}SYNOPSIS${RESET}
 \t$NAME [-h|--help|help] [examples|dotnet|java|python|all|reset]
 ${BOLD}DESCRIPTION${RESET}
@@ -64,27 +64,34 @@ function build_delivery() {
   assert_defined ORTOOLS_IMG
 
   # Clean
+  echo -n "Remove previous docker images..." | tee -a "${ROOT_DIR}/build.log"
   docker image rm -f "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" 2>/dev/null
   docker image rm -f "${ORTOOLS_IMG}":devel 2>/dev/null
   docker image rm -f "${ORTOOLS_IMG}":env 2>/dev/null
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   cd "${RELEASE_DIR}" || exit 2
 
   # Build env
+  echo -n "Build ${ORTOOLS_IMG}:env..." | tee -a "${ROOT_DIR}/build.log"
   docker build --tag "${ORTOOLS_IMG}":env \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=env \
     -f ${DOCKERFILE} .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   # Build devel
+  echo -n "Build ${ORTOOLS_IMG}:devel..." | tee -a "${ROOT_DIR}/build.log"
   docker build --tag "${ORTOOLS_IMG}":devel \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
     --target=devel \
     -f ${DOCKERFILE} .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 
   # Build delivery
+  echo -n "Build ${ORTOOLS_IMG}:${ORTOOLS_DELIVERY}..." | tee -a "${ROOT_DIR}/build.log"
   docker build --tag "${ORTOOLS_IMG}":"${ORTOOLS_DELIVERY}" \
     --build-arg ORTOOLS_GIT_BRANCH="${ORTOOLS_BRANCH}" \
     --build-arg ORTOOLS_GIT_SHA1="${ORTOOLS_SHA1}" \
@@ -92,6 +99,7 @@ function build_delivery() {
     --build-arg ORTOOLS_DELIVERY="${ORTOOLS_DELIVERY}" \
     --target=delivery \
     -f ${DOCKERFILE} .
+  echo "DONE" | tee -a "${ROOT_DIR}/build.log"
 }
 
 # .Net build
