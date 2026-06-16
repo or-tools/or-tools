@@ -19,7 +19,7 @@ plotly==5.15.0
 
 # Notebook
 jupyter==1.0.0
-tornado==6.3.3
+tornado==6.5.7
 Pygments==2.15.0
 jupyter-server==2.7.2
 jsonschema==4.19.0
